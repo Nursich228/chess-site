@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://chess.practicetap.com/sitemap.xml
