@@ -94,12 +94,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .flipped #evalbar { transform: rotate(180deg); }
 
 /* ---------- board ---------- */
-.board { position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 0 var(--line), 0 18px 40px -22px rgba(20, 35, 50, .55); user-select: none; -webkit-user-select: none; touch-action: none; }
-.board-grid { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; height: 100%; }
-.sq { position: relative; display: flex; align-items: center; justify-content: center; }
+.board { position: relative; align-self: flex-start; height: auto; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 0 var(--line), 0 18px 40px -22px rgba(20, 35, 50, .55); user-select: none; -webkit-user-select: none; touch-action: none; }
+/* square board without aspect-ratio: the ::before padding sets the height in every browser (old Safari too) */
+.board::before { content: ''; display: block; padding-top: 100%; }
+.board-grid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr)); }
+.sq { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 .sq.light { background: var(--sq-light); }
 .sq.dark { background: var(--sq-dark); }
-.sq .piece { width: 92%; height: 92%; position: relative; z-index: 2; pointer-events: none; }
+.sq .piece { position: absolute; left: 4%; top: 4%; width: 92%; height: 92%; z-index: 2; pointer-events: none; }
 .piece.ghost { position: fixed; z-index: 100; pointer-events: none; filter: drop-shadow(0 8px 8px rgba(0, 0, 0, .3)); }
 .coord { position: absolute; font-size: clamp(8px, 1.4vw, 11px); font-weight: 700; z-index: 1; }
 .coord.rank { top: 2px; left: 3px; }
@@ -110,7 +112,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .sq.hl-sel::before { content: ''; position: absolute; inset: 0; background: rgba(47, 125, 120, .45); }
 .sq.hl-hint::after { content: ''; position: absolute; inset: 3px; border: 3px solid rgba(224, 154, 31, .9); border-radius: 50%; z-index: 3; }
 .sq.hl-check { background: radial-gradient(circle, #ff4b3e 0%, rgba(255, 75, 62, .5) 45%, transparent 75%) !important; }
-.sq.hl-target::after { content: ''; position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(30, 43, 56, .32); z-index: 3; }
+.sq.hl-target::after { content: ''; position: absolute; left: 36%; top: 36%; width: 28%; height: 28%; border-radius: 50%; background: rgba(30, 43, 56, .32); z-index: 3; }
 .sq.hl-capture::after { content: ''; position: absolute; inset: 4%; border-radius: 50%; border: 5px solid rgba(30, 43, 56, .32); z-index: 3; }
 .board-arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
 .editing .board { cursor: crosshair; outline: 3px dashed var(--brass); outline-offset: 3px; }
