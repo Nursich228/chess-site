@@ -444,7 +444,7 @@ function judgeLastMove() {
 // ---------- opening names (Lichess chess-openings, CC0) ----------
 let openings = null, openingsLoading = null;
 function loadOpenings() {
-  if (!openingsLoading) openingsLoading = fetch(BASE + 'openings.json').then((r) => r.json()).then((d) => { openings = d; }).catch(() => { openings = {}; });
+  if (!openingsLoading) openingsLoading = fetch(BASE + (['ru', 'es', 'fr', 'de'].includes(document.documentElement.lang) ? 'openings-' + document.documentElement.lang + '.json' : 'openings.json')).then((r) => r.json()).then((d) => { openings = d; }).catch(() => { openings = {}; });
   return openingsLoading;
 }
 function translateOpening(name) {
