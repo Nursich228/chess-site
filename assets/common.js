@@ -166,3 +166,27 @@ export function onboard() {
 
 initMenus();
 initFeedback();
+
+// ---- "Help us get better" card: shared like/dislike counters (Abacus) + idea button ----
+function initVoteCard() {
+  const card = $('#fbCard');
+  if (!card) return;
+  if (store.get('fbc-hidden', false)) { card.hidden = true; return; }
+  $('.fbc-x', card).addEventListener('click', () => { store.set('fbc-hidden', true); card.hidden = true; });
+  const API = 'https://abacus.jasoncameron.dev/', NS = 'chess-practicetap-com', KEY = { like: 'site-like', dislike: 'site-dislike' };
+  let my = store.get('fbc-vote', '');
+  const render = () => {
+    $$('.fbc-v', card).forEach((b) => { const on = b.dataset.v === my; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    $('.fbc-msg', card).hidden = !my;
+  };
+  const read = (v) => fetch(API + 'get/' + NS + '/' + KEY[v]).then((r) => (r.status === 404 ? { value: 0 } : r.json())).then((d) => d.value ?? 0);
+  const put = (v, n) => { const el = $(`[data-c="${v}"]`, card); if (el) el.textContent = n; };
+  ['like', 'dislike'].forEach((v) => read(v).then((n) => put(v, n)).catch(() => put(v, '–')));
+  $$('.fbc-v', card).forEach((b) => b.addEventListener('click', () => {
+    if (my) return;
+    my = b.dataset.v; store.set('fbc-vote', my); render();
+    fetch(API + 'hit/' + NS + '/' + KEY[my]).then((r) => r.json()).then((d) => put(my, d.value)).catch(() => {});
+  }));
+  render();
+}
+initVoteCard();
