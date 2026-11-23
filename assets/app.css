@@ -531,3 +531,11 @@ body[data-cd-mode="pile"] .fab { display: none; }
 .fbc-v.on { border-color: var(--ink); background: var(--ink); color: var(--bg); }
 .fbc-count { display: flex; gap: 14px; margin-top: 8px; font-size: 14px; color: var(--muted); }
 .fbc-msg { font-size: 14px; margin: 6px 0 0; }
+
+/* article board diagrams */
+.diag { margin: 22px auto; max-width: 400px; }
+.diag svg { display: block; width: 100%; height: auto; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.diag figcaption { margin-top: 8px; font-size: 14px; line-height: 1.4; color: var(--muted); text-align: center; }
+.diag-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 22px 0; }
+.diag-row .diag { margin: 0; max-width: none; }
+@media (max-width: 520px) { .diag-row { gap: 8px; } .diag-row figcaption { font-size: 12.5px; } }
