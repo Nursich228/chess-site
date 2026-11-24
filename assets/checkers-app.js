@@ -114,7 +114,12 @@ function renderMoves() {
   }
   box.innerHTML = html;
   $$('.mv', box).forEach((b) => b.onclick = () => goTo(+b.dataset.ply));
-  $('.mv.on', box)?.scrollIntoView({ block: 'nearest' });
+  const on = $('.mv.on', box);
+  if (on) { // scroll only the move list, never the whole page
+    const b = box.getBoundingClientRect(), r = on.getBoundingClientRect();
+    if (r.top < b.top) box.scrollTop -= b.top - r.top;
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
+  }
 }
 
 function goTo(i) {

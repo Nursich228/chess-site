@@ -2,6 +2,7 @@
 import { Chess } from './chess.js';
 import { Board } from './board.js';
 import { T, $, sound, prefs } from './common.js';
+import { explainPuzzle, explainHtml } from './pz-explain.js';
 
 const BASE = new URL('./', import.meta.url).href;
 const box = $('.tool[data-pool]');
@@ -10,7 +11,9 @@ const ANALYZE = box.dataset.analyze;
 const LEVEL = { easy: [0, 1299], medium: [1300, 1799], hard: [1800, 4000] };
 const tpl = (s, o) => String(s || '').replace(/\{(\w+)\}/g, (_, k) => o[k]);
 
-let DB = null, P = null, g = null, moves = [], step = 0, solver = 'w', busy = false, done = false, helped = false;
+let DB = null, P = null, g = null, moves = [], step = 0, solver = 'w', busy = false, done = false, helped = false, EX = null;
+const files = {};   // loaded puzzle files: theme pools, daily list and three level files
+async function file(name) { if (!files[name]) files[name] = fetch(BASE + 'pz/' + name + '.json').then((r) => r.json()); return files[name]; }
 let order = [], orderPos = 0, mode = POOL;   // mode: daily | theme | level:<name>
 
 const board = new Board($('#board'), {
@@ -41,6 +44,8 @@ function playUci(u) {
 
 function load(idx) {
   const [id, fen, mv, rating, themes] = DB.p[idx];
+  try { EX = explainPuzzle(fen, mv.split(' '), themes, T); } catch { EX = null; }
+  const box = $('#pzExplain'); if (box) { box.hidden = true; box.innerHTML = ''; }
   P = { id, idx, rating, themes };
   g = new Chess(fen); moves = mv.split(' '); step = 0; done = false; helped = false; busy = true;
   solver = g.turn() === 'w' ? 'b' : 'w';
@@ -71,22 +76,30 @@ function tryMove(from, to) {
   sound(m.captured ? 'capture' : g.inCheck() ? 'check' : 'move');
   show(m); step++;
   if (step >= moves.length) return solved();
-  status(T.pz_correct, 'good'); busy = true;
+  const why = EX && EX.steps[step - 2] && EX.steps[step - 2].what.slice(1, 2).join(' ');
+  status(T.pz_correct + (why ? ' — ' + why : ''), 'good'); busy = true;
   setTimeout(() => { playUci(moves[step]); step++; busy = false; yourMove(); }, 450);
 }
 
 function today() { return Math.floor((Date.now() + 5 * 3600e3) / 864e5); }
 
+function showExplain() {
+  const box = $('#pzExplain');
+  if (!box || !EX) return;
+  box.innerHTML = explainHtml(EX, T);
+  box.hidden = false;
+}
 function solved() {
   done = true;
-  if (helped) { status(T.pz_shown); return; }
-  status(T.pz_solved, 'good');
+  showExplain();
+  if (helped) { status(T.pz_shown, 'good'); return; }
+  status(T.pz_solved_ex || T.pz_solved, 'good');
   const seen = prefs.get('pz-solved', []);
   if (!seen.includes(P.id)) { seen.push(P.id); prefs.set('pz-solved', seen.slice(-5000)); }
   if (mode === 'daily') {
     const days = prefs.get('pz-days', []);
     if (!days.includes(today())) { days.push(today()); prefs.set('pz-days', days.slice(-400)); }
-    status(T.pz_solved + ' ' + T.pz_daily_done, 'good');
+    status((T.pz_solved_ex || T.pz_solved) + ' ' + T.pz_daily_done, 'good');
   }
   stats();
 }
@@ -123,12 +136,12 @@ function solution() {
 
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-function nextPuzzle() {
+async function nextPuzzle() {
   if (mode.startsWith('level:')) {
-    const [lo, hi] = LEVEL[mode.slice(6)];
-    const cand = DB.p.map((p, i) => [p, i]).filter(([p]) => p[3] >= lo && p[3] <= hi).map(([, i]) => i);
-    $('#pzLabel').textContent = T['pz_' + mode.slice(6)];
-    return load(cand[Math.floor(Math.random() * cand.length)]);
+    const name = mode.slice(6);
+    DB = await file('lvl-' + name);
+    $('#pzLabel').textContent = T['pz_' + name];
+    return load(Math.floor(Math.random() * DB.p.length));
   }
   if (POOL === 'daily') { mode = 'level:medium'; return nextPuzzle(); }
   orderPos = (orderPos + 1) % order.length;
@@ -136,15 +149,15 @@ function nextPuzzle() {
 }
 
 async function start() {
-  DB = await (await fetch(BASE + 'puzzles.json')).json();
+  DB = await file(POOL);
   if (POOL === 'daily') {
-    const list = DB.pools.daily;
+    const list = DB.p;
     const d = new Date(); const label = d.toLocaleDateString(document.documentElement.lang, { day: 'numeric', month: 'long' });
     $('#pzLabel').textContent = `${T.pz_daily} · ${label}`;
-    load(list[today() % list.length]);
+    load(today() % list.length);
   } else {
     const seen = new Set(prefs.get('pz-solved', []));
-    order = shuffle(DB.pools[POOL].slice());
+    order = shuffle(DB.p.map((_, i) => i));
     order.sort((a, b) => (seen.has(DB.p[a][0]) ? 1 : 0) - (seen.has(DB.p[b][0]) ? 1 : 0));
     load(order[0]);
   }

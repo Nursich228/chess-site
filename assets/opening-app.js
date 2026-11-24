@@ -22,6 +22,20 @@ function show() {
   if (m) { h[m.from] = 'last'; h[m.to] = 'last'; }
   board.setHighlights(h);
   $$('#opMoves .ply').forEach((b) => b.classList.toggle('on', +b.dataset.ply === ply));
+  // explanation of the move that led to this position, right under the board
+  const now = $('#opNow');
+  const data = $('#opData');
+  if (now && data) {
+    const li = $(`#opSteps li[data-ply="${ply}"]`);
+    $$('#opSteps li').forEach((x) => x.classList.toggle('on', x === li));
+    if (li) {
+      now.innerHTML = '';
+      const head = document.createElement('div'); head.className = 'op-now-head';
+      head.textContent = (data.dataset.now || '') + ': ' + li.querySelector('.op-step-head').textContent.trim();
+      now.appendChild(head);
+      li.querySelectorAll('p').forEach((p) => now.appendChild(p.cloneNode(true)));
+    } else now.innerHTML = `<p class="muted">${data.dataset.start || ''}</p>`;
+  }
 }
 const go = (p) => { ply = Math.max(0, Math.min(uci.length, p)); show(); };
 $$('[data-op]').forEach((b) => b.addEventListener('click', () => {
@@ -29,6 +43,7 @@ $$('[data-op]').forEach((b) => b.addEventListener('click', () => {
   if (a === 'first') go(0); else if (a === 'prev') go(ply - 1); else if (a === 'next') go(ply + 1); else if (a === 'last') go(uci.length); else if (a === 'flip') board.flip();
 }));
 $$('#opMoves .ply').forEach((b) => b.addEventListener('click', () => go(+b.dataset.ply)));
+$$('#opSteps .op-step-head').forEach((b) => b.addEventListener('click', () => { go(+b.dataset.ply); $('#board').scrollIntoView({ behavior: 'smooth', block: 'center' }); }));
 document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea')) return;
   if (e.key === 'ArrowLeft') go(ply - 1); else if (e.key === 'ArrowRight') go(ply + 1);

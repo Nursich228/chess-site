@@ -16,6 +16,7 @@ let analysisToken = 0;
 let lastLines = [];
 let reviewing = false;
 let playState = { color: 'w', level: 3, thinking: false, over: false };
+let freeFen = null; // FEN of a free-setup position the engine can't analyse
 
 const fig = (san) => san.replace(/[KQRBN]/g, (c) => FIG[c]);
 const cur = () => new Chess(hist[ply].fen);
@@ -140,7 +141,14 @@ function renderMoves() {
   box.innerHTML = html;
   $$('.mv', box).forEach((b) => b.onclick = () => goTo(parseInt(b.dataset.ply, 10)));
   const on = $('.mv.on', box);
-  if (on) on.scrollIntoView({ block: 'nearest' });
+  if (on) scrollInBox(box, on);
+}
+
+// Scroll only the move list itself, never the page: scrollIntoView() moved the whole page on phones.
+function scrollInBox(box, el) {
+  const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+  if (r.top < b.top) box.scrollTop -= b.top - r.top;
+  else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
 }
 
 function goTo(i) {
@@ -406,11 +414,19 @@ function showWhy(fen, line) {
   if (!box) return;
   const parts = line && line.pv[0] ? explainMove(fen, line.pv[0], line.sc).slice(1) : [];
   box.hidden = !parts.length;
+  box.classList.remove('pending');
   // keep it short: up to two reasons plus the overall assessment
   const reasons = parts.slice(0, -1).slice(0, 2);
   $('#stripWhyText').textContent = [...reasons, parts[parts.length - 1]].filter(Boolean).join(' ');
 }
-function hideWhy() { const b = $('#stripWhy'); if (b) b.hidden = true; }
+// While the engine thinks, keep the line in place (dimmed) instead of hiding it,
+// so the buttons under the board do not jump up and down on every move.
+function hideWhy() {
+  const b = $('#stripWhy');
+  if (!b || b.hidden) return;
+  b.classList.add('pending');
+  $('#stripWhyText').textContent = T.thinking;
+}
 
 // ---------- judging the player's own move ----------
 function showJudge(text) {
@@ -515,6 +531,7 @@ export function loadFen(fen) {
   try { new Chess(fen); } catch { toast(T.bad_fen); return false; }
   hist = [{ fen }];
   ply = 0;
+  hideFreeNote();
   if (editing) stopEditor(false);
   refresh();
   return true;
@@ -561,11 +578,13 @@ document.addEventListener('paste', (e) => {
 let editing = false, editPos = {}, editTool = 'wp', editTurn = 'w';
 function startEditor(clear) {
   if (MODE === 'play') return;
+  hideFreeNote();
   engine.stop();
   analysisToken++;
   editing = true;
-  editPos = clear ? {} : posMap(cur());
-  editTurn = cur().turn();
+  const fromFree = !clear && freeFen;
+  editPos = clear ? {} : fromFree ? editPos : posMap(cur());
+  editTurn = fromFree ? freeFen.split(' ')[1] : cur().turn();
   document.body.classList.add('editing');
   const panel = $('#editorPanel');
   if (panel) panel.hidden = false;
@@ -573,14 +592,15 @@ function startEditor(clear) {
     if (editTool === 'x') delete editPos[sq];
     else if (phase === 'down' && editPos[sq] === editTool) delete editPos[sq];
     else editPos[sq] = editTool;
-    if (editTool[1] === 'k') for (const [s, c] of Object.entries(editPos)) if (c === editTool && s !== sq) delete editPos[s];
+    if (editTool[1] === 'k' && !freeSetup()) for (const [s, c] of Object.entries(editPos)) if (c === editTool && s !== sq) delete editPos[s];
     board.setPosition(editPos);
     syncCastling();
   };
   board.setArrows([]);
   board.setHighlights({});
   board.setPosition(editPos);
-  const rights = clear ? '' : hist[ply].fen.split(' ')[2];
+  const rights = clear ? '' : (fromFree ? freeFen : hist[ply].fen).split(' ')[2];
+  freeFen = null;
   ['K', 'Q', 'k', 'q'].forEach((k) => { const el = $('#c' + k); if (el) el.checked = rights.includes(k); });
   $$('input[name=turn]').forEach((r) => { r.checked = r.value === editTurn; });
   syncCastling();
@@ -611,30 +631,96 @@ function editorFen() {
   let castle = ['K', 'Q', 'k', 'q'].filter((k) => $('#c' + k)?.checked).join('') || '-';
   return `${rows.join('/')} ${editTurn} ${castle} - 0 1`;
 }
-function stopEditor(apply) {
-  if (apply) {
-    const fen = editorFen();
-    const wk = Object.values(editPos).filter((c) => c === 'wk').length, bk = Object.values(editPos).filter((c) => c === 'bk').length;
-    if (wk !== 1 || bk !== 1) { toast(T.need_kings); return; }
-    try { new Chess(fen); } catch { toast(T.bad_position); return; }
-    const test = new Chess(fen);
-    const opp = editTurn === 'w' ? 'b' : 'w';
-    const oppKing = Object.entries(editPos).find(([, c]) => c === opp + 'k')[0];
-    if (test.attackers(oppKing, editTurn).length) { toast(T.bad_check); return; }
-    editing = false;
-    board.opts.onSquare = null;
-    document.body.classList.remove('editing');
-    $('#editorPanel').hidden = true;
-    hist = [{ fen }]; ply = 0;
-    refresh();
-    return;
+// Free setup: any position at all (10 knights, no king, pawns on the edge...).
+// Strict setup (default): only positions that can happen in a real game.
+const freeBox = $('#edFree');
+const freeSetup = () => !!(freeBox && freeBox.checked);
+if (freeBox) { freeBox.checked = prefs.get('freeSetup', false); freeBox.onchange = () => prefs.set('freeSetup', freeBox.checked); }
+
+function countPieces(pos) {
+  const n = {};
+  for (const c of Object.values(pos)) n[c] = (n[c] || 0) + 1;
+  return (c) => n[c] || 0;
+}
+// Material that a real game can reach: at most 8 pawns, extra pieces only from promoted pawns.
+function realisticMaterial(pos) {
+  const n = countPieces(pos);
+  for (const s of ['w', 'b']) {
+    const pawns = n(s + 'p');
+    const extra = Math.max(0, n(s + 'q') - 1) + Math.max(0, n(s + 'r') - 2) + Math.max(0, n(s + 'b') - 2) + Math.max(0, n(s + 'n') - 2);
+    if (pawns > 8 || extra > 8 - pawns) return false;
   }
-  editing = false;
+  return true;
+}
+// Why the engine can't look at this position (or '' if it can).
+function engineProblem(pos, fen, turn) {
+  const n = countPieces(pos);
+  if (n('wk') !== 1 || n('bk') !== 1) return T.free_r_kings;
+  if (Object.entries(pos).some(([sq, c]) => c[1] === 'p' && (sq[1] === '1' || sq[1] === '8'))) return T.free_r_pawns;
+  // Stockfish crashes beyond these numbers: 16 pieces and 8 pawns per side, 10 of one kind
+  for (const s of ['w', 'b']) {
+    const kinds = ['p', 'n', 'b', 'r', 'q', 'k'].map((k) => n(s + k));
+    if (kinds[0] > 8 || kinds.reduce((a, x) => a + x, 0) > 16 || Math.max(...kinds) > 10) return T.free_r_many;
+  }
+  let test;
+  try { test = new Chess(fen); } catch { return T.free_r_other; }
+  const opp = turn === 'w' ? 'b' : 'w';
+  const oppKing = Object.entries(pos).find(([, c]) => c === opp + 'k')[0];
+  if (test.attackers(oppKing, turn).length) return T.free_r_check;
+  return '';
+}
+function closeEditorUi() {
   board.opts.onSquare = null;
   document.body.classList.remove('editing');
   const p = $('#editorPanel');
   if (p) p.hidden = true;
 }
+function showFreeNote(reason) {
+  const box = $('#freeNote');
+  if (!box) return;
+  box.hidden = false;
+  lastLines = [];
+  $('#freeReason').textContent = T.free_no_engine.replace('{reason}', reason);
+  setEvalBar(null);
+  const sb = $('#stripBest'); if (sb) sb.textContent = '—';
+  const bm = $('#bestMove'); if (bm) bm.textContent = '—';
+  const lines = $('#lines'); if (lines) lines.innerHTML = `<p class="muted">${T.free_title}</p>`;
+}
+function hideFreeNote() { const box = $('#freeNote'); if (box) box.hidden = true; }
+
+function stopEditor(apply) {
+  hideFreeNote();
+  if (apply) {
+    const fen = editorFen();
+    const free = freeSetup();
+    const n = countPieces(editPos);
+    if (!free) {
+      if (n('wk') !== 1 || n('bk') !== 1) { toast(T.need_kings); return; }
+      if (!realisticMaterial(editPos)) { toast(T.bad_material, 6000); return; }
+    }
+    const problem = engineProblem(editPos, fen, editTurn);
+    if (problem) {
+      if (!free) { toast(problem === T.free_r_check ? T.bad_check : T.bad_position); return; }
+      // free setup: show the position as it is; the engine can't analyse it
+      closeEditorUi();
+      board.setArrows([]); board.setHighlights({}); board.setPosition(editPos);
+      freeFen = fen;
+      showFreeNote(problem);
+      return;
+    }
+    freeFen = null;
+    editing = false;
+    closeEditorUi();
+    hist = [{ fen }]; ply = 0;
+    refresh();
+    return;
+  }
+  freeFen = null;
+  editing = false;
+  closeEditorUi();
+}
+const freeEdit = $('#freeEdit'); if (freeEdit) freeEdit.onclick = () => startEditor(false);
+const freeCopy = $('#freeCopy'); if (freeCopy) freeCopy.onclick = () => { if (freeFen) copyText(freeFen); };
 $$('.spare').forEach((b) => b.addEventListener('click', () => {
   editTool = b.dataset.p;
   $$('.spare').forEach((x) => x.classList.toggle('on', x === b));
