@@ -2,7 +2,11 @@ import * as C from './checkers-engine.js';
 import { Board } from './board.js';
 import { T, $, $$, sound, toast, copyText, prefs, onboard } from './common.js';
 
-const MODE = document.body.dataset.tool; // checkers | checkers-play
+const MODE = document.body.dataset.tool; // checkers | checkers-play | giveaway-play
+const PLAY = MODE.endsWith('-play');
+const VARIANT = MODE === 'giveaway-play' ? 'giveaway' : 'russian';
+C.setVariant(VARIANT);
+const PK = VARIANT === 'giveaway' ? 'gv' : 'ck'; // prefs key prefix
 const BASE = new URL('./', import.meta.url).href;
 const WIN = C.SCORE_WIN;
 
@@ -23,7 +27,7 @@ function think(board, side, opts, cb) {
   busy = true;
   jobId++;
   jobCb = cb;
-  worker.postMessage({ id: jobId, board, side, timeMs: opts.timeMs || 1500, maxDepth: opts.maxDepth || 30, multiPv: opts.multiPv || 3 });
+  worker.postMessage({ id: jobId, variant: VARIANT, board, side, timeMs: opts.timeMs || 1500, maxDepth: opts.maxDepth || 30, multiPv: opts.multiPv || 3 });
 }
 function stopThinking() { if (busy) { worker.terminate(); newWorker(); busy = false; } jobId++; jobCb = null; }
 
@@ -50,7 +54,7 @@ const boardUi = new Board($('#board'), {
     const { board, side } = cur();
     const p = board[C.sqIndex(sq)];
     if (!p || Math.sign(p) !== side) return false;
-    if (MODE === 'checkers-play') return !play.thinking && !play.over && side === play.color;
+    if (PLAY) return !play.thinking && !play.over && side === play.color;
     return true;
   },
   targets: (sq) => [...new Set(legalFrom(sq).map((m) => C.sqName(m.to)))],
@@ -65,7 +69,7 @@ function pushMove(m) {
   const nb = C.applyMove(board, m);
   hist = hist.slice(0, ply + 1);
   const top = lastLines[0];
-  const judgePrev = (MODE !== 'checkers-play' && top && top.depth >= 4) ? { best: C.moveToString(top.move), score: top.score } : null;
+  const judgePrev = (!PLAY && top && top.depth >= 4) ? { best: C.moveToString(top.move), score: top.score } : null;
   hist.push({ board: nb, side: -side, move: m, text: C.moveToString(m), judgePrev });
   ply++;
   sound(m.captured.length ? 'capture' : 'move');
@@ -94,9 +98,10 @@ function refresh() {
   showJudge(cur().judgeText);
   const over = C.generateMoves(board, side).length === 0;
   const st = $('#status');
-  if (st) st.textContent = over ? (side === 1 ? T.ck_black_wins : T.ck_white_wins) : (side === 1 ? T.white_to_move : T.black_to_move);
+  const whiteWon = VARIANT === 'giveaway' ? side === 1 : side === -1;
+  if (st) st.textContent = over ? (whiteWon ? T.ck_white_wins : T.ck_black_wins) : (side === 1 ? T.white_to_move : T.black_to_move);
   if (over) sound('end');
-  if (MODE === 'checkers-play') { playTurn(); return; }
+  if (PLAY) { playTurn(); return; }
   analyse();
 }
 
@@ -123,7 +128,7 @@ function renderMoves() {
 }
 
 function goTo(i) {
-  if (MODE === 'checkers-play') return;
+  if (PLAY) return;
   ply = Math.max(0, Math.min(hist.length - 1, i));
   refresh();
 }
@@ -275,7 +280,7 @@ $('#coachThreats') && ($('#coachThreats').onclick = threats);
 function act(n) {
   switch (n) {
     case 'flip': boardUi.flip(); drawArrows(); break;
-    case 'undo': if (MODE === 'checkers-play') playUndo(); else goTo(ply - 1); break;
+    case 'undo': if (PLAY) playUndo(); else goTo(ply - 1); break;
     case 'redo': goTo(ply + 1); break;
     case 'first': goTo(0); break;
     case 'last': goTo(hist.length - 1); break;
@@ -322,7 +327,7 @@ if (playBest) playBest.onclick = () => { if (lastLines[0]) pushMove(lastLines[0]
 
 // ---------- editor ----------
 function startEditor(clear) {
-  if (MODE === 'checkers-play') return;
+  if (PLAY) return;
   stopThinking();
   editing = true;
   editBoard = clear ? new Array(64).fill(0) : cur().board.slice();
@@ -392,7 +397,7 @@ function playTurn() {
 }
 function newGame() {
   stopThinking();
-  const c = prefs.get('ckColor', 1);
+  const c = prefs.get(PK + 'Color', 1);
   play.color = c === 0 ? (Math.random() < 0.5 ? 1 : -1) : c;
   play.thinking = false;
   boardUi.setOrientation(play.color === 1 ? 'white' : 'black');
@@ -407,16 +412,16 @@ function playUndo() {
   hist = hist.slice(0, ply + 1);
   refresh();
 }
-if (MODE === 'checkers-play') {
-  play.level = prefs.get('ckLevel', 3);
+if (PLAY) {
+  play.level = prefs.get(PK + 'Level', 3);
   $$('[data-level]').forEach((b) => {
     b.classList.toggle('on', +b.dataset.level === play.level);
-    b.onclick = () => { play.level = +b.dataset.level; prefs.set('ckLevel', play.level); $$('[data-level]').forEach((x) => x.classList.toggle('on', x === b)); };
+    b.onclick = () => { play.level = +b.dataset.level; prefs.set(PK + 'Level', play.level); $$('[data-level]').forEach((x) => x.classList.toggle('on', x === b)); };
   });
   $$('[data-color]').forEach((b) => {
     const val = { w: 1, b: -1, r: 0 }[b.dataset.color];
-    b.classList.toggle('on', val === prefs.get('ckColor', 1));
-    b.onclick = () => { prefs.set('ckColor', val); $$('[data-color]').forEach((x) => x.classList.toggle('on', x === b)); newGame(); };
+    b.classList.toggle('on', val === prefs.get(PK + 'Color', 1));
+    b.onclick = () => { prefs.set(PK + 'Color', val); $$('[data-color]').forEach((x) => x.classList.toggle('on', x === b)); newGame(); };
   });
   $('#newGame').onclick = newGame;
   $('#hintBtn').onclick = () => {

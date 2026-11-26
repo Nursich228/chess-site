@@ -170,7 +170,28 @@ export function fromPosString(str) {
 // ---------- evaluation & search ----------
 const MAN = 100, KING = 300, WIN = 100000;
 
+// Variant: 'russian' (normal) or 'giveaway' (поддавки: the side left without moves wins).
+let VARIANT = 'russian';
+export function setVariant(v) { VARIANT = v === 'giveaway' ? 'giveaway' : 'russian'; }
+export function getVariant() { return VARIANT; }
+
+function evaluateGiveaway(b) {
+  // from white's point of view: fewer own pieces is better; kings are hard to give away
+  let s = 0, wn = 0, bn = 0;
+  for (let i = 0; i < 64; i++) {
+    const p = b[i];
+    if (!p) continue;
+    const r = Math.floor(i / 8);
+    if (p === 1) { wn++; s -= MAN - (7 - r) * 2; }
+    else if (p === -1) { bn++; s += MAN - r * 2; }
+    else if (p === 2) { wn++; s -= 220; }
+    else if (p === -2) { bn++; s += 220; }
+  }
+  return s;
+}
+
 export function evaluate(b) {
+  if (VARIANT === 'giveaway') return evaluateGiveaway(b);
   // from white's point of view
   let s = 0, wm = 0, bm = 0, wk = 0, bk = 0;
   for (let i = 0; i < 64; i++) {
@@ -187,7 +208,8 @@ export function evaluate(b) {
 }
 
 export function gameResult(board, side) {
-  return generateMoves(board, side).length === 0 ? -side : 0; // winner: 1 white, -1 black
+  if (generateMoves(board, side).length) return 0;
+  return VARIANT === 'giveaway' ? side : -side; // winner: 1 white, -1 black
 }
 
 function orderMoves(moves) {
@@ -200,7 +222,7 @@ function negamax(b, side, depth, alpha, beta, ply) {
   if ((++nodes & 2047) === 0 && Date.now() > deadline) { stopped = true; }
   if (stopped) return 0;
   const moves = generateMoves(b, side);
-  if (!moves.length) return -WIN + ply;
+  if (!moves.length) return VARIANT === 'giveaway' ? WIN - ply : -WIN + ply;
   const forced = moves[0].captured.length > 0;
   if (depth <= 0 && !forced) return side * evaluate(b);
   if (depth <= -8) return side * evaluate(b);
@@ -219,7 +241,7 @@ function negamax(b, side, depth, alpha, beta, ply) {
 // Analyse: returns {depth, lines:[{move, score, pv}]} sorted best first. score from side-to-move POV in centi-units.
 export function analyse(board, side, { maxDepth = 12, timeMs = 1500, multiPv = 3, onDepth } = {}) {
   const rootMoves = orderMoves(generateMoves(board, side));
-  if (!rootMoves.length) return { depth: 0, lines: [], result: -side };
+  if (!rootMoves.length) return { depth: 0, lines: [], result: VARIANT === 'giveaway' ? side : -side };
   deadline = Date.now() + timeMs;
   stopped = false; nodes = 0;
   let last = null;

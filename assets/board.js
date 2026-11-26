@@ -84,7 +84,7 @@ export class Board {
           cell.appendChild(img);
         }
       } else if (existing) existing.remove();
-      cell.classList.remove('hl-last', 'hl-sel', 'hl-check', 'hl-target', 'hl-capture', 'hl-hint');
+      for (const k of [...cell.classList]) if (k.startsWith('hl-')) cell.classList.remove(k);
       const h = this.highlights[name];
       if (h) for (const k of h.split(' ')) cell.classList.add('hl-' + k);
     }

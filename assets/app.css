@@ -657,3 +657,64 @@ h2.agrp { margin-top: 28px; }
   .tools-r .ibtn { padding: 6px 8px; }
 }
 @media (max-width: 340px) { .logo span, .logo b { font-size: 14px; } }
+
+/* corners (уголки): start corners */
+.hl-goalw::before, .hl-goalb::before { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.hl-goalw::before { background: rgba(224, 154, 31, .20); }
+.hl-goalb::before { background: rgba(47, 125, 120, .28); }
+.hl-goalw.hl-last::before, .hl-goalb.hl-last::before { background: rgba(224, 154, 31, .38); }
+.panel label.chk { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; cursor: pointer; }
+#moves .mv:not(button) { display: inline-block; padding: 2px 6px; border-radius: 6px; }
+
+/* durak vs computer */
+.tool.dk { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); }
+.dk-area { background: radial-gradient(ellipse at 50% 40%, #2f7a58 0%, #1f5a40 70%, #194a35 100%); border-radius: 14px; padding: 14px 12px 16px; display: flex; flex-direction: column; gap: 12px; min-height: 540px; color: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+.dk-who { text-align: center; font-size: 14px; opacity: .9; }
+.dk-hand { display: flex; justify-content: center; align-items: flex-end; min-height: 92px; padding-top: 14px; }
+.dk-hand .dk-c { flex: none; transition: transform .15s ease, filter .15s ease; }
+.dk-hand .dk-c + .dk-c { margin-left: var(--ov, 6px); }
+.dk-hand.opp { min-height: 64px; padding-top: 0; }
+.dk-hand.opp .mem-card { width: 44px; height: 64px; border-radius: 6px; }
+.dk-hand.me .dk-c { cursor: pointer; }
+.dk-hand.me .dk-c.can:hover, .dk-hand.me .dk-c.can:focus-visible { transform: translateY(-8px); outline: none; }
+.dk-hand.me .dk-c.sel { transform: translateY(-14px); box-shadow: 0 0 0 3px var(--brass), 0 6px 14px rgba(0,0,0,.35); }
+.dk-hand.me .dk-c:not(.can) { filter: brightness(.78); cursor: default; }
+.dk-hand.me .dk-c.trump::after { content: ''; position: absolute; }
+.mem-card.dk-c { position: relative; }
+.dk-mid { display: flex; align-items: center; gap: 12px; flex: 1; }
+.dk-deck { position: relative; width: 116px; height: 100px; flex: none; }
+.dk-outpile { position: relative; width: 84px; height: 100px; flex: none; }
+.dk-deck .dk-trump { position: absolute; left: 44px; top: 8px; transform: rotate(90deg); }
+.dk-deck .dk-trump .mem-card { width: 58px; height: 84px; }
+.dk-deck .dk-suit { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.92); color: #1d2733; font-size: 32px; transform: rotate(-90deg); margin: 8px 0 0 -6px; }
+.dk-deck .dk-suit.red { color: #c62828; }
+.dk-deck .dk-pile { position: absolute; left: 0; top: 8px; width: 58px; height: 84px; }
+.dk-outpile .mem-card { position: absolute; right: 0; top: 8px; width: 58px; height: 84px; transform: rotate(-8deg); }
+.dk-n { position: absolute; left: 0; bottom: -6px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+.dk-outpile .dk-n { left: auto; right: 0; }
+.dk-table { flex: 1; display: flex; flex-wrap: wrap; gap: 10px 14px; justify-content: center; align-content: center; min-height: 130px; }
+.dk-pair { position: relative; width: 80px; height: 112px; }
+.dk-pair .mem-card { position: absolute; left: 0; top: 0; }
+.dk-pair .mem-card.d { left: 14px; top: 20px; transform: rotate(9deg); }
+.dk-pair.target { cursor: pointer; }
+.dk-pair.target .mem-card.a { box-shadow: 0 0 0 3px var(--brass), 0 2px 6px rgba(0,0,0,.2); }
+.dk-msg { text-align: center; min-height: 44px; display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+.dk-msg #playStatus { font-size: 17px; }
+.dk-msg #dkMsg { font-size: 14px; opacity: .88; }
+.dk-actions { display: flex; gap: 10px; justify-content: center; min-height: 40px; flex-wrap: wrap; }
+.dk-outlist summary { cursor: pointer; font-weight: 700; font-size: 15px; }
+.dk-outlist .mem-line { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+@media (max-width: 860px) { .tool.dk { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) {
+  .dk-area { padding: 10px 6px 12px; min-height: 480px; gap: 8px; }
+  .dk-hand .mem-card { width: 54px; height: 78px; }
+  .dk-hand .mem-card .r { font-size: 20px; } .dk-hand .mem-card .s { font-size: 23px; }
+  .dk-hand.opp .mem-card { width: 34px; height: 50px; }
+  .dk-pair { width: 64px; height: 96px; }
+  .dk-pair .mem-card { width: 52px; height: 76px; } .dk-pair .mem-card .r { font-size: 19px; } .dk-pair .mem-card .s { font-size: 22px; }
+  .dk-pair .mem-card.d { left: 10px; top: 18px; }
+  .dk-deck { width: 92px; height: 84px; } .dk-outpile { width: 64px; height: 84px; }
+  .dk-deck .dk-pile, .dk-outpile .mem-card { width: 46px; height: 68px; }
+  .dk-deck .dk-trump { left: 34px; top: 8px; } .dk-deck .dk-trump .mem-card { width: 46px; height: 68px; }
+  .dk-table { gap: 6px 8px; }
+}

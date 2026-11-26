@@ -1,7 +1,8 @@
-import { analyse } from './checkers-engine.js';
+import { analyse, setVariant } from './checkers-engine.js';
 
 self.onmessage = (e) => {
-  const { id, board, side, timeMs, maxDepth, multiPv } = e.data;
+  const { id, board, side, timeMs, maxDepth, multiPv, variant } = e.data;
+  setVariant(variant);
   const res = analyse(board, side, {
     timeMs, maxDepth, multiPv,
     onDepth: (r) => self.postMessage({ id, partial: true, result: r }),
